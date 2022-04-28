@@ -20,28 +20,28 @@ const emptyFeePercentages = [];
 describe("Early bid tests", function () {
   let ERC721;
   let erc721;
-  let NFTAuction;
-  let nftAuction;
+  let UnstoppableAuction;
+  let auction;
   let contractOwner;
   let user1;
   let user2;
   let user3;
 
   beforeEach(async function () {
-    ERC721 = await ethers.getContractFactory("ERC721MockContract");
-    NFTAuction = await ethers.getContractFactory("NFTAuction");
+    ERC721 = await ethers.getContractFactory("ERC721Test");
+    UnstoppableAuction = await ethers.getContractFactory("CroozeMarketPlace");
     [ContractOwner, user1, user2, user3] = await ethers.getSigners();
 
-    erc721 = await ERC721.deploy("my mockables", "MBA");
+    erc721 = await ERC721.deploy("my mockables", "CrzMockNFT");
     await erc721.deployed();
-    await erc721.mint(user1.address, 1);
+    await erc721.mint(user1.address, tokenId);
 
-    nftAuction = await NFTAuction.deploy();
-    await nftAuction.deployed();
+    auction = await UnstoppableAuction.deploy();
+    await auction.deployed();
     //approve our smart contract to transfer this NFT
-    await erc721.connect(user1).approve(nftAuction.address, 1);
+    await erc721.connect(user1).approve(auction.address, tokenId);
 
-    await nftAuction
+    await auction
       .connect(user2)
       .makeBid(erc721.address, tokenId, zeroAddress, zeroERC20Tokens, {
         value: minPrice,
@@ -49,14 +49,14 @@ describe("Early bid tests", function () {
   });
   // whitelisted buyer should be able to purchase NFT
   it("should allow early bids on NFTs", async function () {
-    let result = await nftAuction.nftContractAuctions(erc721.address, tokenId);
+    let result = await auction.nftContractAuctions(erc721.address, tokenId);
     expect(result.nftHighestBidder).to.equal(user2.address);
     expect(result.nftHighestBid.toString()).to.be.equal(
       BigNumber.from(minPrice).toString()
     );
   });
   it("should allow NFT owner to create auction", async function () {
-    await nftAuction
+    await auction
       .connect(user1)
       .createDefaultNftAuction(
         erc721.address,
@@ -68,11 +68,11 @@ describe("Early bid tests", function () {
         emptyFeePercentages
       );
 
-    let result = await nftAuction.nftContractAuctions(erc721.address, tokenId);
+    let result = await auction.nftContractAuctions(erc721.address, tokenId);
     expect(result.minPrice).to.equal(BigNumber.from(minPrice).toString());
   });
   it("should start auction period if early bid is higher than minimum", async function () {
-    await nftAuction
+    await auction
       .connect(user1)
       .createDefaultNftAuction(
         erc721.address,
@@ -84,11 +84,11 @@ describe("Early bid tests", function () {
         emptyFeePercentages
       );
 
-    let result = await nftAuction.nftContractAuctions(erc721.address, tokenId);
+    let result = await auction.nftContractAuctions(erc721.address, tokenId);
     expect(result.auctionEnd).to.be.not.equal(BigNumber.from(0).toString());
   });
   it("should not start auction period if early bid less than minimum", async function () {
-    await nftAuction
+    await auction
       .connect(user1)
       .createDefaultNftAuction(
         erc721.address,
@@ -100,18 +100,18 @@ describe("Early bid tests", function () {
         emptyFeePercentages
       );
 
-    let result = await nftAuction.nftContractAuctions(erc721.address, tokenId);
+    let result = await auction.nftContractAuctions(erc721.address, tokenId);
     expect(result.auctionEnd).to.be.equal(BigNumber.from(0).toString());
   });
   it("should not allow minPrice to be updated by other users", async function () {
     await expect(
-      nftAuction
+      auction
         .connect(user2)
         .updateMinimumPrice(erc721.address, tokenId, newMinPrice)
     ).to.be.revertedWith("Only nft seller");
   });
   it("should revert early bid if whitelist sale created for different user", async function () {
-    await nftAuction.connect(user1).createSale(
+    await auction.connect(user1).createSale(
       erc721.address,
       tokenId,
       zeroAddress,
@@ -120,7 +120,7 @@ describe("Early bid tests", function () {
       emptyFeeRecipients,
       emptyFeePercentages
     );
-    let result = await nftAuction.nftContractAuctions(erc721.address, tokenId);
+    let result = await auction.nftContractAuctions(erc721.address, tokenId);
     expect(result.auctionEnd).to.be.equal(BigNumber.from(0).toString());
     expect(result.nftHighestBidder).to.be.equal(zeroAddress);
   });
